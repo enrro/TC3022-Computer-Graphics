@@ -1,0 +1,31 @@
+<html>
+    <head>
+        <title></title>
+        <style>
+        #canvas{
+            border: 2px solid blue;
+            background-color: black;
+        }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas" width= "500" height="500"></canvas>
+        <script type="text/javascript">
+            var canvas = document.getElementById("canvas");
+            var context = canvas.getContext("2d");
+
+            var x0 = canvas.width / 2; var y0 = canvas.height / 4;
+            var x1 = canvas.width / 4; var y1 = 3 * canvas.height / 4;
+            var x2 = 3 * canvas.width / 4; var y2 = 3 * canvas.height / 4;
+
+            context.beginPath();
+            context.moveTo(x0,y0);
+            context.lineTo(x1,y1);
+            context.lineTo(x2,y2);
+            context.closePath();
+
+            context.fillStyle = "white";
+            context.fill();
+        </script>
+    </body>
+</html>
