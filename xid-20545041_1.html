@@ -1,0 +1,92 @@
+<!--3-1-WebGL Hello World-->
+<!DOCTYPE HTML>
+<html lang="es">
+	<head>
+		<title>WebGL Hello World</title>
+		<meta charset="utf-8">
+		<style type="text/css">
+			#canvas{
+				border:2px solid blue;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="canvas" width="500" height="500"></canvas>
+		<script id="shader-vs" type="x-shader/x-vertex">
+			// The Vertex Shader
+			attribute vec3 aPosition;
+			
+			void main(void)
+			{
+				gl_Position = vec4(aPosition, 1.);
+			}
+		</script>
+
+		<script id="shader-fs" type="x-shader/x-fragment">
+			// The Fragment Shader
+			precision highp float;
+
+			void main(void)
+			{
+				gl_FragColor = vec4(1., 1., 1., 1.);
+			}
+		</script>
+
+		<script type="text/javascript">	
+			// 1. Inicializar Contexto de Rendering	
+			var canvas = document.getElementById("canvas");
+			var gl = canvas.getContext("webgl");
+			gl.clearColor(0., 0., 0., 1.);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// 2. Inciializar Escena
+			var positions = [ 0., 0.5, 0., 	// V0
+				              -0.5, -0.5, 0.,	// v1
+					           0.5, -0.5, 0.	// V2
+						     ];
+
+			// 3. Inicializar Shaders
+			// Crear el Vertex Shader object
+			var vertexShaderSrc = document.getElementById("shader-vs").text;
+			var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+			gl.shaderSource(vertexShader, vertexShaderSrc);
+			gl.compileShader(vertexShader);
+			// Crear el Fragment Shader object
+			var fragmentShaderSrc = document.getElementById("shader-fs").text;
+			var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+			gl.shaderSource(fragmentShader, fragmentShaderSrc);
+			gl.compileShader(fragmentShader);
+			// Crear el Shader Program Object
+			var shaderProgram = gl.createProgram();
+			gl.attachShader(shaderProgram, vertexShader);
+			gl.attachShader(shaderProgram, fragmentShader);
+			gl.linkProgram(shaderProgram);
+			// Referenciar la ubicación de la ariable shader que recibe datos de la CPU (attribute variable)
+			var aPosition = gl.getAttribLocation(shaderProgram, "aPosition");
+
+			// 4. Inicializar Buffers
+			// Crear un Buffer Object en la GPU
+			var vbo = gl.createBuffer();
+			// Asociar el Buffer Object con un tipo de Buffer
+			gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+			// Cargar datos en el Buffer
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+			// 5. Renderear la Escena
+			// Inicializar el viewport
+			gl.viewport(0, 0, canvas.width, canvas.height);
+			// Limpiar el framebuffer
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			// Indicar el Shader Program Object a usar
+			gl.useProgram(shaderProgram);
+			// Activar la variable attribute en el shader
+			gl.enableVertexAttribArray(aPosition);
+			// Asociar el Buffer Object con un tipo de Buffer
+			gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+			// Conectar el Buffer Object con una variable attribute y decir cómo se van a pasar los datos
+			gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+			// Dibujar la escena con una primitiva de OpenGL
+			gl.drawArrays(gl.TRIANGLES, 0, 3);
+		</script>
+	</body>
+</html>
