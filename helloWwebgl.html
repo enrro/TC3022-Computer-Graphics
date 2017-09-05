@@ -1,12 +1,12 @@
 <!DOCTYPE>
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE HTML>
+<html lang="es">
     <head>
         <title>Hello World Weeb</title>
-        <meta charset="UTF-8">
-        <<style type="text/css">
+        <meta charset="utf-8">
+        <style type="text/css">
             #canvas{
-                border: 2px solid blue;
+                border:2px solid blue;
             }
         </style>
     </head>
@@ -14,13 +14,17 @@
         <canvas id="canvas" width= "500" height="500"></canvas>
         <script id="shader-vs" type="x-shader/x-vertex">
             attribute vec3 aPosition;
+            attribute vec4 aColor;
+            varying vec4 vColor;
             void main(void)
             {
                 gl_Position = vec4(aPosition, 1.);
+                vColor = aColor;
             }
         </script>
         <script id="shader-fs" type="x-shader/x-fragment">
                 precision highp float;
+                varying vec4 vColor;
                 void main(void)
                 {
                     gl_FragColor = vec4(1.,1.,1., 1.);
@@ -37,15 +41,16 @@
             var points = [0.,0.5,0.,
                          -0.5,-0.5,0.,
                          0.5,-0.5,0.]
-            var color = [1.,0.,0.,1.,
-                         0.,1.,0.,1.,
-                         0.,1.,1.,0.]
+            var color = [1.,0.,0.,1.,   //v0 RGBA
+                         0.,1.,0.,1.,   //v1 RGBA
+                         0.,0.,1.,1.]   //v2 RGBA
             // 3. inicializar los shaders.
             //create and compile the vertex shader
             var vertexShaderSrc = document.getElementById("shader-vs").text;
             var vertexShader = gl.createShader(gl.VERTEX_SHADER);
             gl.shaderSource(vertexShader, vertexShaderSrc);
             gl.compileShader(vertexShader);
+
             //create and compile fragment shader
             var fragmentShaderSrc = document.getElementById("shader-fs").text;
             var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
@@ -60,6 +65,8 @@
 
             //referenciar las variables en el shader que recibe datos.
             var aPosition = gl.getAttribLocation(shaderProgram, "aPosition");
+            var aColor = gl.getAttribLocation(shaderProgram, "aColor");
+
             // 4. inicializar los buffers.
             // create buffer
             var buffer = gl.createBuffer();
@@ -67,6 +74,11 @@
             gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
             // cargar datos en el buffer
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(points), gl.STATIC_DRAW);
+
+            var colorBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(color), gl.STATIC_DRAW);
+
             // 5. renderear la escena
             gl.viewport(0.,0., canvas.width, canvas.height);
             //limpiar el framebuffer de color
@@ -80,6 +92,11 @@
             //indicar como se van a obtener los datos del buffer
             gl.vertexAttribPointer(aPosition,3,gl.FLOAT, false, 0,0);
             //dibujar la primitiva con una primitiva de webgl
+            
+            gl.enableVertexAttribArray(aColor);
+            gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+            gl.vertexAttribPointer(aColor,4,gl.FLOAT, false, 0,0);
+            
             gl.drawArrays(gl.TRIANGLES,0,3);
         </script>
     </body>
