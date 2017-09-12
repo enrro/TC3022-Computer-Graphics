@@ -1,0 +1,213 @@
+<!--5-1 Simple Animation: Rotation about the Origen-->
+<!DOCTYPE HTML>
+<html lang="es">
+	<head>
+		<title>Simple Animation: Rotation about the Origen</title>
+		<meta charset="utf-8">
+
+		<style type="text/css">
+			#canvas{
+				border:2px solid blue;
+			}
+		</style>
+
+		<script src="webgl-utils.js" type="text/javascript"></script>
+		<script src="gl-matrix-min.js" type="text/javascript"></script>
+
+		<script id="shader-vs" type="x-shader/x-vertex">
+			// The Vertex Shader
+			attribute vec3 aPosition;
+			uniform mat4 uModelMatrix;
+			
+			void main(void)
+			{
+				// P' = Mmodel P
+				gl_Position = uModelMatrix * vec4(aPosition, 1.);
+			}
+		</script>
+
+		<script id="shader-fs" type="x-shader/x-fragment">
+			// The Fragment Shader
+			precision highp float;
+
+			void main(void)
+			{
+				gl_FragColor = vec4(1., 1., 1., 1.);
+			}
+		</script>
+		
+		<script type="text/javascript">	
+			// global variables
+			var canvas;
+			var gl;
+			var pgl;		// properties of gl;
+			var positions;
+			var tetha;
+			var deltaTetha;
+			var rotVector;
+			var modelMatrix;
+
+			function initViewport()
+			{
+				pgl.viewport = {};
+				pgl.viewport.x = 0;
+				pgl.viewport.y = 0;
+				pgl.viewport.width = canvas.width;
+				pgl.viewport.height = canvas.height;
+			}
+
+			function initRenderingContext()
+			{
+				// 1. Inicializar Contexto de Rendering	
+				canvas = document.getElementById("canvas");
+				gl = WebGLUtils.setupWebGL(canvas);
+
+				pgl = {};
+				gl.clearColor(0., 0., 0., 1.);
+				initViewport();
+			}
+				
+			function initScene()
+			{
+				// 2. Inciializar Escena
+				positions = new Float32Array(
+							[ 0., 0.5, 0., 		// V0
+					         -0.5, -0.5, 0.,	// v1
+						      0.5, -0.5, 0.		// V2
+							]);
+			}
+
+			function createShader(gl, type, src)
+			{
+				var shader = gl.createShader(type);
+				gl.shaderSource(shader, src);
+				gl.compileShader(shader);
+				if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS) && !gl.isContextLost())
+			    {
+			        console.log("An error ocurred compiling the shaders: " + gl.getShaderInfoLog(shader));
+			        gl.deleteShader(shader);
+			        shader = null;
+			    }
+				return shader;
+			}
+
+			function createShaderProgram(gl, vertexShader, fragmentShader)
+			{
+				var shaderProgram = gl.createProgram();
+				gl.attachShader(shaderProgram, vertexShader);
+				gl.attachShader(shaderProgram, fragmentShader);
+				gl.linkProgram(shaderProgram);
+				if(!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS) && !gl.isContextLost())
+		        {
+		            console.log("Unable to initialize the shader program: " + gl.getProgramInfoLog(shaderProgram));
+		            return null;
+		        }
+				return shaderProgram;
+			}
+
+			function initShaders()
+			{
+				var vertexShaderScript = document.getElementById("shader-vs");
+				var fragmentShaderScript = document.getElementById("shader-fs");
+				if(vertexShaderScript.type != "x-shader/x-vertex")
+		        {
+		            console.log("An error ocuured loading a shader: unknown vertex shader type");
+		        }
+		        else if(fragmentShaderScript.type != "x-shader/x-fragment")
+		        {
+		            console.log("An error ocuured loading a shader: unknown fragment shader type");
+		        }
+		        else
+		        {
+		        	var vertexShaderSrc = document.getElementById("shader-vs").text;
+					var fragmentShaderSrc = document.getElementById("shader-fs").text;
+		        	var vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSrc);
+					var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSrc);
+					pgl.shaderProgram = createShaderProgram(gl, vertexShader, fragmentShader);
+					// Referenciar la ubicación de las variables shader que recibe datos de la CPU (attribute variables)
+					pgl.shaderProgram.aPosition = gl.getAttribLocation(pgl.shaderProgram, "aPosition");
+					pgl.shaderProgram.uModelMatrix = gl.getUniformLocation(pgl.shaderProgram, "uModelMatrix");
+		        }
+			}
+			
+			function initBuffers()
+			{
+				// 4. Inicializar Buffers
+				// Crear un Buffer Object en la GPU
+				pgl.vbo = gl.createBuffer();
+				// Asociar el Buffer Object con un tipo de Buffer
+				gl.bindBuffer(gl.ARRAY_BUFFER, pgl.vbo);
+				// Cargar datos en el Buffer
+				gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+				// Parámetros de datos del buffer
+				pgl.vbo.VERTEX_SIZE = 3 + 4;				// x,y,z,R,G,B,A
+				pgl.vbo.VERTICES = 3;						// n = 3
+			}
+
+			function initAnimation()
+			{
+				tetha = 0.;									// initial angle in degress
+				deltaTetha = 0.5;							// animation in degrees
+				tetha = tetha * Math.PI / 180.;				// rads
+				deltaTetha = deltaTetha * Math.PI / 180.;	// rads
+				// Rotation axis: Z
+				rotVector = vec3.create();
+				vec3.set(rotVector, 0., 0., 1.);
+				// Model Matrix initialization
+				modelMatrix = mat4.create();				// M = I
+			}
+
+			function updateScene()
+			{
+				tetha = tetha + deltaTetha;
+				// Updating Model Transformation
+				// M = IR
+				mat4.identity(modelMatrix);									// M = I
+				mat4.rotate(modelMatrix, modelMatrix, tetha, rotVector);	// M = MR(tetha + deltatetha)
+			}
+
+			function renderScene(currentTime)
+			{
+				// 5. Renderear la Escena
+
+				// Request a new call for drawing the next frame
+				requestAnimationFrame(renderScene);
+
+				// Update the Scene
+				updateScene();
+
+				// Inicializar el viewport
+				gl.viewport(pgl.viewport.x, pgl.viewport.y, pgl.viewport.width, pgl.viewport.height);
+				// Limpiar el framebuffer
+				gl.clear(gl.COLOR_BUFFER_BIT);
+				// Indicar el Shader Program Object a usar
+				gl.useProgram(pgl.shaderProgram);
+
+				// Cargar la Matriz en el shader
+				gl.uniformMatrix4fv(pgl.shaderProgram.uModelMatrix, false, modelMatrix);
+
+				// Activar la variable attribute en el shader
+				gl.enableVertexAttribArray(pgl.shaderProgram.aPosition);
+				// Asociar el Buffer Object con un tipo de Buffer
+				gl.bindBuffer(gl.ARRAY_BUFFER, pgl.vbo);
+				// Conectar el Buffer Object con una variable attribute y decir cómo se van a pasar los datos
+				gl.vertexAttribPointer(pgl.shaderProgram.aPosition, 3, gl.FLOAT, false, 0, 0);
+				// Dibujar la escena con una primitiva de OpenGL
+				gl.drawArrays(gl.TRIANGLES, 0, 3);
+			}
+
+			function main()
+			{
+				initRenderingContext();
+				initScene();
+				initShaders();
+				initBuffers();
+				initAnimation();
+				renderScene();
+			}
+		</script>
+	</head>
+	<body onload="main();">
+		<canvas id="canvas" width="500" height="500"></canvas>
+	</body>
+</html>
