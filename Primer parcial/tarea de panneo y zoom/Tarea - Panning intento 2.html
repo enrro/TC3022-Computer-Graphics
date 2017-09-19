@@ -1,0 +1,316 @@
+<!--12-1 Oribit Camera-->
+<!DOCTYPE HTML>
+<html lang="es">
+	<head>
+		<title>Tarea Panning</title>
+		<meta charset="utf-8">
+
+		<style type="text/css">
+			#canvas{
+				border:2px solid blue;
+			}
+		</style>
+
+		<script src="webgl-utils.js" type="text/javascript"></script>
+		<script src="gl-matrix-min.js" type="text/javascript"></script>
+
+		<script id="shader-vs" type="x-shader/x-vertex">
+			// The Vertex Shader
+			attribute vec3 aPosition;
+			uniform mat4 uModelViewMatrix;	// Mmodel-view
+			uniform mat4 uProjMatrix;	// Mproj
+			
+			void main(void)
+			{
+				// P' = Mproj Mmodel-view P
+				gl_Position = uProjMatrix * uModelViewMatrix * vec4(aPosition, 1.);
+			}
+		</script>
+
+		<script id="shader-fs" type="x-shader/x-fragment">
+			// The Fragment Shader
+			precision highp float;
+
+			void main(void)
+			{
+				gl_FragColor = vec4(1., 1., 1., 1.);
+			}
+		</script>
+		
+		<script type="text/javascript">	
+			"use strict"
+			// global variables
+			var canvas;
+			var gl;
+			var pgl;		// properties of gl;
+			var positions;
+			var modelMatrix;
+			var viewMatrix;
+			var projMatrix;
+			var eyeVector, targetVector, upVector;
+			var eyeX, eyeY, eyeZ;
+			var tetha, deltaTetha, radius;
+			var currentPressedKeys;
+			var deltaPosX = 0.;
+			var deltaPosY = 0.;
+			var targetX;
+			var targetZ;
+			var targetY;
+			
+			function initViewport()
+			{
+				pgl.viewport = {};
+				pgl.viewport.x = 0;
+				pgl.viewport.y = 0;
+				pgl.viewport.width = canvas.width;
+				pgl.viewport.height = canvas.height;
+			}
+
+			function initRenderingContext()
+			{
+				// 1. Inicializar Contexto de Rendering	
+				canvas = document.getElementById("canvas");
+				//gl = WebGLUtils.setupWebGL(canvas);
+				gl = WebGLUtils.setupWebGL(canvas);
+
+				pgl = {};
+				gl.clearColor(0., 0., 0., 1.);
+				initViewport();
+			}
+				
+			function initScene()
+			{
+				// 2. Inciializar Escena
+				positions = new Float32Array(
+							[ 0., 0.5, 0., 		// V0
+					         -0.5, -0.5, 0.,	// v1
+						      0.5, -0.5, 0.,	// V2
+							]);
+			}
+
+			function createShader(gl, type, src)
+			{
+				var shader = gl.createShader(type);
+				gl.shaderSource(shader, src);
+				gl.compileShader(shader);
+				if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS) && !gl.isContextLost())
+			    {
+			        console.log("An error ocurred compiling the shaders: " + gl.getShaderInfoLog(shader));
+			        gl.deleteShader(shader);
+			        shader = null;
+			    }
+				return shader;
+			}
+
+			function createShaderProgram(gl, vertexShader, fragmentShader)
+			{
+				var shaderProgram = gl.createProgram();
+				gl.attachShader(shaderProgram, vertexShader);
+				gl.attachShader(shaderProgram, fragmentShader);
+				gl.linkProgram(shaderProgram);
+				if(!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS) && !gl.isContextLost())
+		        {
+		            console.log("Unable to initialize the shader program: " + gl.getProgramInfoLog(shaderProgram));
+		            return null;
+		        }
+				return shaderProgram;
+			}
+
+			function initShaders()
+			{
+				var vertexShaderScript = document.getElementById("shader-vs");
+				var fragmentShaderScript = document.getElementById("shader-fs");
+				if(vertexShaderScript.type != "x-shader/x-vertex")
+		        {
+		            console.log("An error ocuured loading a shader: unknown vertex shader type");
+		        }
+		        else if(fragmentShaderScript.type != "x-shader/x-fragment")
+		        {
+		            console.log("An error ocuured loading a shader: unknown fragment shader type");
+		        }
+		        else
+		        {
+		        	var vertexShaderSrc = document.getElementById("shader-vs").text;
+					var fragmentShaderSrc = document.getElementById("shader-fs").text;
+		        	var vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSrc);
+					var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSrc);
+					pgl.shaderProgram = createShaderProgram(gl, vertexShader, fragmentShader);
+					// Referenciar la ubicación de las variables shader que recibe datos de la CPU (attribute variables)
+					pgl.shaderProgram.aPosition = gl.getAttribLocation(pgl.shaderProgram, "aPosition");
+					pgl.shaderProgram.uModelViewMatrix = gl.getUniformLocation(pgl.shaderProgram, "uModelViewMatrix");
+					pgl.shaderProgram.uProjMatrix = gl.getUniformLocation(pgl.shaderProgram, "uProjMatrix");
+		        }
+			}
+			
+			function initBuffers()
+			{
+				// 4. Inicializar Buffers
+				// Crear un Buffer Object en la GPU
+				pgl.vbo = gl.createBuffer();
+				// Asociar el Buffer Object con un tipo de Buffer
+				gl.bindBuffer(gl.ARRAY_BUFFER, pgl.vbo);
+				// Cargar datos en el Buffer
+				gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+				// Parámetros de datos del buffer
+				pgl.vbo.VERTEX_SIZE = 3;	// x,y,z
+				pgl.vbo.VERTICES = 3;		// n = 3
+			}
+
+			function initAnimation()
+			{
+				tetha = 0.; 	// grados;
+				deltaTetha = 0.5;	// grados
+				
+				//tetha = tetha * Math.PI / 180.;
+				deltaTetha = deltaTetha * Math.PI / 180.;
+				// Model Transformation (Model Matrix)
+                modelMatrix = mat4.create();	// Mmodel = I
+				
+                // Projection Transformation (perspective)
+                var fovy = 60.;	// degrees
+                fovy = fovy *Math.PI / 180.;
+                var aspect = pgl.viewport.width / pgl.viewport.height;
+                var near = 0.1; 
+                var far = 1000.;
+				
+				
+                // View Transformation
+                // Tview = Tview(eyeX, eyeY, eyeZ)
+                // View Vector
+                eyeX = 0.;
+                eyeY = 0.;
+                eyeZ = 1.5;
+                radius = eyeZ;
+
+                eyeVector = vec3.create();
+                vec3.set(eyeVector, eyeX, eyeY, eyeZ);
+                // Target Vector
+                targetX = 0.;
+                targetY = 0.;
+                targetZ = 0.;
+                targetVector = vec3.create();
+                vec3.set(targetVector, targetX, targetY, targetZ);
+                // Up Vector
+                var upX = 0.;
+                var upY = 1.;
+                var upZ = 0.;
+                upVector = vec3.create();
+                vec3.set(upVector, upX, upY, upZ);
+
+                viewMatrix = mat4.create();
+                mat4.lookAt(viewMatrix, eyeVector, targetVector, upVector); 
+
+                projMatrix = mat4.create();		// Mproj = I
+                mat4.perspective(projMatrix, fovy, aspect, near, far);	// Mproj = Mpers
+			}
+
+			function updateScene()
+			{
+				tetha = tetha + deltaTetha;
+				//eyeX = radius * Math.sin(tetha);
+				//eyeZ = radius * Math.cos(tetha);
+				
+				targetX += deltaPosX;
+				targetY += deltaPosY;
+				vec3.set(targetVector, targetX, targetY, targetZ);
+				mat4.lookAt(viewMatrix, eyeVector, targetVector, upVector);
+			}
+			/*
+			functions for key pressing
+			*/
+			function handleKeyDown(event)
+			{
+				currentPressedKeys[event.keyCode] = true;
+				handleKeyEvents();
+			}
+
+			function handleKeyUp(event)
+			{
+				currentPressedKeys[event.keyCode] = false;
+				handleKeyEvents();
+			}
+
+			function handleKeyEvents()
+			{
+				if(currentPressedKeys[37])	// Left Cursor Key
+				{
+					deltaPosX = + .02;
+					currentPressedKeys[37] = false;
+				}
+				if(currentPressedKeys[39])	// Right Cursor Key
+				{
+					deltaPosX =  - .02;
+					currentPressedKeys[39] = false;
+				}
+				if(currentPressedKeys[38])	// Up Cursor Key
+				{
+					deltaPosY = - .02;
+					currentPressedKeys[38] = false;
+				}
+				if(currentPressedKeys[40])	// Down Cursor Key
+				{
+					deltaPosY = + .02;
+					currentPressedKeys[40] = false;
+				}
+			}
+
+			function initEventHandler()
+			{
+				document.onkeydown = handleKeyDown;
+				document.onkeyup = handleKeyUp;
+				currentPressedKeys = {};
+			}
+			
+
+			function renderScene()
+			{
+				// Registar la función callback
+				requestAnimationFrame(renderScene);
+
+				// 5. Renderear la Escena
+				// Inicializar el viewport
+				gl.viewport(pgl.viewport.x, pgl.viewport.y, pgl.viewport.width, pgl.viewport.height);
+				// Limpiar el framebuffer
+				gl.clear(gl.COLOR_BUFFER_BIT);
+
+                // Model-View  Matrix
+                // Matrix Equation:
+                // Mmodel-view = Mview Mmodel
+                var modelViewMatrix = mat4.create();
+                mat4.multiply(modelViewMatrix, viewMatrix, modelMatrix);
+
+                // Decir qué Shader Program usar
+                gl.useProgram(pgl.shaderProgram);
+
+                // Cargar las Matrices de Modelo-Vista y Proyección en el shader
+                gl.uniformMatrix4fv(pgl.shaderProgram.uModelViewMatrix, false, modelViewMatrix);
+                gl.uniformMatrix4fv(pgl.shaderProgram.uProjMatrix, false, projMatrix);
+
+				// Activar la variable attribute en el shader
+				gl.enableVertexAttribArray(pgl.shaderProgram.aPosition);
+				// Asociar el Buffer Object con un tipo de Buffer
+				gl.bindBuffer(gl.ARRAY_BUFFER, pgl.vbo);
+				// Conectar el Buffer Object con una variable attribute y decir cómo se van a pasar los datos
+				gl.vertexAttribPointer(pgl.shaderProgram.aPosition, 3, gl.FLOAT, false, 0, 0);
+				// Dibujar la escena con una primitiva de OpenGL
+				gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+				updateScene();
+			}
+
+			function main()
+			{
+				initRenderingContext();
+				initScene();
+				initShaders();
+				initBuffers();
+				initAnimation();
+				initEventHandler();
+				renderScene();
+			}
+		</script>
+	</head>
+	<body onload="main();">
+		<canvas id="canvas" width="500" height="500"></canvas>
+	</body>
+</html>
